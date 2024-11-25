@@ -150,7 +150,6 @@ class Game:
             """
             font = pygame.font.Font("assets/fonts/OpenSans-Medium.ttf", 18)
             heart = pygame.image.load("assets/images/heart.png")
-            heart = pygame.transform.scale(heart, (20, 20))
             text = font.render("Lives: ", True, Color.BLACK.value)
             self._screen.blit(
                 text,
@@ -166,7 +165,7 @@ class Game:
                     heart,
                     (
                         self._padding + text.get_size()[0] + i * 20,
-                        self._padding // 2 + self._stats_padding // 2 - 8,
+                        self._padding // 2 + self._stats_padding // 2 - 6,
                     ),
                 )
 
