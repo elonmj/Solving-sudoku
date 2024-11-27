@@ -1,7 +1,6 @@
 import copy
 import random
 
-from sudoku.exceptions import InvalidDigitError
 
 type Coordinates = tuple[int, int]
 
@@ -50,7 +49,7 @@ class Board:
         :raises InvalidDigitError: if digit is not in the range [1, 9]
         """
         if digit < 1 | digit > 9:
-            raise InvalidDigitError(digit)
+            return
 
         self.grid[row, col] = digit
 

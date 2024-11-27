@@ -27,8 +27,15 @@ class Game:
         
         self.state = GameState.PLAYING
         self.clock = pygame.time.Clock()
+        self._resolution = GameConfig.WINDOW_SIZE  # Ajout de l'attribut manquant
+        self._padding = GameConfig.PADDING
+        self._button_height = GameConfig.BUTTON_HEIGHT
+        self._stats_padding = self._button_height + self._padding * 2
+        self._total_height = self._resolution[1] + self._stats_padding + self._padding
+        self._time = time.time()
         self.screen = pygame.display.set_mode(self._calculate_window_size())
         
+        # Game state
         self.board = Board()
         self.solve_button = Button(
             GameConfig.PADDING, 
@@ -40,6 +47,10 @@ class Game:
             GameConfig.PADDING,
             GameConfig.BUTTON_HEIGHT + GameConfig.PADDING * 2
         )
+        self.rects = {}  # Pour stocker les rectangles de la grille
+        self._selected_cell = None
+        self._button_rect = None
+        self._button_hovered = False
 
     def _calculate_window_size(self) -> tuple[int, int]:
         total_height = (
@@ -252,19 +263,22 @@ class Game:
             )
 
         self._screen.fill(Color.WHITE.value)
-        self._button_rect = self._draw_button() 
+        self.solve_button.draw(self._screen)
+        self._button_rect = self.solve_button.rect  # Garder une référence au rectangle du bouton
+        
         pos = pygame.mouse.get_pos()
         if self._button_rect.collidepoint(pos):
             self._button_hovered = True
         else:
             self._button_hovered = False
+            
         _draw_cells()
         _draw_grid()
         _draw_digits()
         _draw_time()
 
         pygame.display.flip()
-        self._clock.tick(60)
+        self.clock.tick(60)
 
     def play(self) -> bool:
         # Setup initial display
