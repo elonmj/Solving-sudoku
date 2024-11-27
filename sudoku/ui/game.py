@@ -1,36 +1,108 @@
 import time
 from enum import Enum
+from typing import Tuple
 
 import pygame
 import pygame.freetype
 
 from sudoku.logic.board import Board, Coordinates
+from sudoku.resolution.solver import SudokuSolver
+from sudoku.config import GameConfig, Color
+from sudoku.ui.components import Button, Grid
 
 pygame.init()
 pygame.display.set_caption("Sudoku")
 
 
-class Color(Enum):
-    BEIGE = (202, 194, 186)
-    BLACK = (0, 0, 0)
-    CORAL = (255, 127, 8)
-    GREEN = (79, 159, 77)
-    WHITE = (225, 225, 225)
+class GameState:
+    PLAYING = "playing"
+    SOLVING = "solving"
+    GAME_OVER = "game_over"
 
 
 class Game:
     def __init__(self) -> None:
-        # Pygame setup
-        self._clock = pygame.time.Clock()
-        self._padding = 10
-        self._resolution = (360, 360)
-        self._stats_padding = 40
-        self._time = time.time()
-
-        # Game state
+        pygame.init()
+        pygame.display.set_caption("Sudoku")
+        
+        self.state = GameState.PLAYING
+        self.clock = pygame.time.Clock()
+        self.screen = pygame.display.set_mode(self._calculate_window_size())
+        
         self.board = Board()
-        self.lives = 5
-        self.rects: dict[Coordinates, pygame.Rect] = {}
+        self.solve_button = Button(
+            GameConfig.PADDING, 
+            GameConfig.PADDING, 
+            "Solve"
+        )
+        self.grid = Grid(
+            self.board,
+            GameConfig.PADDING,
+            GameConfig.BUTTON_HEIGHT + GameConfig.PADDING * 2
+        )
+
+    def _calculate_window_size(self) -> tuple[int, int]:
+        total_height = (
+            GameConfig.WINDOW_SIZE[1] + 
+            GameConfig.BUTTON_HEIGHT + 
+            GameConfig.PADDING * 3
+        )
+        return (
+            GameConfig.WINDOW_SIZE[0] + GameConfig.PADDING * 2,
+            total_height
+        )
+
+    def handle_events(self) -> bool:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
+                
+            if self.solve_button.handle_event(event):
+                self._handle_solve()
+                
+            # Handle other events...
+        return True
+
+    def _handle_solve(self) -> None:
+        self.state = GameState.SOLVING
+        solver = SudokuSolver(self.board)
+        solution = solver.solve()
+        if solution:
+            self._animate_solution(solution)
+        self.state = GameState.PLAYING
+
+    def draw_digit(self, pos: Tuple[int, int], digit: int, is_initial: bool = False) -> None:
+        """
+        Dessine un chiffre à une position donnée
+        
+        :param pos: Position (row, col)
+        :param digit: Chiffre à dessiner
+        :param is_initial: Si c'est un chiffre initial
+        """
+        i, j = pos
+        x, y = self._resolution
+        font = pygame.font.Font("assets/fonts/OpenSans-Medium.ttf", 22)
+        
+        if is_initial:
+            color = Color.BLACK.value
+        else:
+            # Vérifier si le chiffre est valide
+            current = self.board.grid[i, j]
+            self.board.grid[i, j] = 0
+            allowed = self.board.get_allowed(i, j)
+            self.board.grid[i, j] = current
+            
+            color = (0, 0, 255) if digit in allowed else (255, 0, 0)
+        
+        text = font.render(str(digit), True, color)
+        width, height = text.get_size()
+        self._screen.blit(
+            text,
+            (
+                j * x // 9 + x // 9 // 2 + self._padding - width // 2,
+                i * y // 9 + y // 9 // 2 + self._stats_padding - height // 2,
+            ),
+        )
 
     def update(
         self, hover: pygame.Rect | None = None, click: pygame.Rect | None = None
@@ -44,7 +116,7 @@ class Game:
         """
 
         x, y = self._resolution
-        padding = self._padding + self._stats_padding
+        grid_offset_y = self._stats_padding  # Nouveau décalage vertical pour la grille
 
         def _draw_cells() -> None:
             """
@@ -55,17 +127,18 @@ class Game:
                 for j in range(9):
                     rect = pygame.Rect(
                         j * x // 9 + self._padding,
-                        i * y // 9 + padding,
+                        i * y // 9 + grid_offset_y,
                         x // 9,
                         y // 9,
                     )
-                    pygame.draw.rect(
-                        self._screen,
-                        Color.BEIGE.value
-                        if self.board.visible[(i, j)] != 0
-                        else Color.WHITE.value,
-                        rect,
-                    )
+                    # Déterminer la couleur de la case
+                    if (i, j) == self._selected_cell:
+                        cell_color = Color.CORAL.value  # Couleur pour la case sélectionnée
+                    elif self.board.grid[(i, j)] != 0:
+                        cell_color = Color.BEIGE.value
+                    else:
+                        cell_color = Color.WHITE.value
+                    pygame.draw.rect(self._screen, cell_color, rect)
                     pygame.draw.rect(self._screen, (150, 150, 150), rect, 1)
                     self.rects[i, j] = rect
 
@@ -77,7 +150,7 @@ class Game:
                     Color.GREEN.value,
                     pygame.Rect(
                         self._padding,
-                        (col - 1) * y // 9 + padding,
+                        (col - 1) * y // 9 + grid_offset_y,
                         x,
                         y // 9,
                     ),
@@ -89,7 +162,7 @@ class Game:
                     Color.GREEN.value,
                     pygame.Rect(
                         row * x // 9 + self._padding,
-                        padding,
+                        grid_offset_y,
                         x // 9,
                         y,
                     ),
@@ -101,7 +174,7 @@ class Game:
                     Color.GREEN.value,
                     pygame.Rect(
                         row // 3 * y // 3 + self._padding,
-                        (col - 1) // 3 * x // 3 + padding,
+                        (col - 1) // 3 * x // 3 + grid_offset_y,
                         x // 3,
                         y // 3,
                     ),
@@ -126,7 +199,7 @@ class Game:
                 Color.BLACK.value,
                 pygame.Rect(
                     self._padding,
-                    padding,
+                    grid_offset_y,
                     x,
                     y,
                 ),
@@ -138,60 +211,24 @@ class Game:
                 for j in range(3):
                     rect = pygame.Rect(
                         j * x // 3 + self._padding,
-                        i * y // 3 + padding,
+                        i * y // 3 + grid_offset_y,
                         x // 3,
                         y // 3,
                     )
                     pygame.draw.rect(self._screen, Color.BLACK.value, rect, 1)
 
-        def _draw_stats() -> None:
-            """
-            Draw the stats on the screen.
-            """
-            font = pygame.font.Font("assets/fonts/OpenSans-Medium.ttf", 18)
-            heart = pygame.image.load("assets/images/heart.png")
-            text = font.render("Lives: ", True, Color.BLACK.value)
-            self._screen.blit(
-                text,
-                (
-                    self._padding,
-                    self._padding // 2
-                    + self._stats_padding // 2
-                    - text.get_size()[1] // 2,
-                ),
-            )
-            for i in range(self.lives):
-                self._screen.blit(
-                    heart,
-                    (
-                        self._padding + text.get_size()[0] + i * 20,
-                        self._padding // 2 + self._stats_padding // 2 - 6,
-                    ),
-                )
-
         def _draw_digits() -> None:
             """
             Draw the digits on the screen.
             """
-            font = pygame.font.Font("assets/fonts/OpenSans-Medium.ttf", 22)
-            x, y = self._resolution
             for i in range(9):
                 for j in range(9):
-                    if self.board.visible[i, j] != 0:
-                        text = font.render(
-                            str(self.board.visible[i, j]), True, Color.BLACK.value
-                        )
-                        width, height = text.get_size()
-                        self._screen.blit(
-                            text,
-                            (
-                                j * x // 9 + x // 9 // 2 + self._padding - width // 2,
-                                i * y // 9
-                                + y // 9 // 2
-                                + self._padding
-                                + self._stats_padding
-                                - height // 2,
-                            ),
+                    digit = self.board.grid[i, j]
+                    if digit != 0:
+                        self.draw_digit(
+                            (i, j), 
+                            digit, 
+                            is_initial=(i, j) in self.board.initial_cells
                         )
 
         def _draw_time() -> None:
@@ -215,10 +252,14 @@ class Game:
             )
 
         self._screen.fill(Color.WHITE.value)
-
+        self._button_rect = self._draw_button() 
+        pos = pygame.mouse.get_pos()
+        if self._button_rect.collidepoint(pos):
+            self._button_hovered = True
+        else:
+            self._button_hovered = False
         _draw_cells()
         _draw_grid()
-        _draw_stats()
         _draw_digits()
         _draw_time()
 
@@ -226,12 +267,9 @@ class Game:
         self._clock.tick(60)
 
     def play(self) -> bool:
-        # Set resolution
+        # Setup initial display
         x, y = self._resolution
-        size = [
-            x + self._padding * 2,
-            y + self._padding * 2 + self._stats_padding,
-        ]
+        size = [x + self._padding * 2, self._total_height]
         self._screen = pygame.display.set_mode(size)
 
         self.update()
@@ -241,16 +279,18 @@ class Game:
         self._clicked = None
         self._hovered = None
         while True:
-            # Check if the game is won
-            if all([digit != 0 for digit in self.board.visible.values()]):
+            if all([self.board.grid[i, j] == self.board.solution[i, j] 
+                    for i in range(9) for j in range(9)]):
                 self.show_game_over("You Win!")
                 return True
 
             for event in pygame.event.get():
-                # Get mouse position
+                if event.type == pygame.QUIT:
+                    return True
+
                 pos = pygame.mouse.get_pos()
 
-                # Handle mouse movement
+                # Gestion du survol
                 if event.type == pygame.MOUSEMOTION:
                     hovered = [
                         (cell, rect)
@@ -260,81 +300,78 @@ class Game:
                     if hovered:
                         cell, rect = hovered[0]
                         x, y = cell
-                        if self.board.visible[x, y] == 0:
+                        if self.board.grid[x, y] == 0:
                             self._hovered = rect
                             self.update(hover=rect)
-
                         else:
                             self._hovered = None
                             self.update()
-
                     else:
                         self._hovered = None
                         self.update()
 
-                # Handle mouse click
+                # Gestion du clic
                 if event.type == pygame.MOUSEBUTTONDOWN:
+                    if self._button_rect and self._button_rect.collidepoint(event.pos):
+                        # Call the solver
+                        solver = SudokuSolver(self.board)
+                        solution = solver.solve()
+                        if solution:
+                            # Animate the solved digits
+                            for (row, col), value in solution.items():
+                                if self.board.grid[row, col] == 0:
+                                    pygame.time.wait(500)  # Delay in milliseconds
+                                    self.board.grid[row, col] = value
+                                    self.draw_digit((row, col), value, is_initial=False)
+                                    pygame.display.flip()
+                            # Check if the board is complete
+                            if all(self.board.grid[(i, j)] == self.board.solution[(i, j)] for i in range(9) for j in range(9)):
+                                self.show_game_over("Solved!")
+                        else:
+                            print("No solution found.")
                     hovered = [
                         (cell, rect)
                         for (cell, rect) in self.rects.items()
                         if rect.collidepoint(pos)
                     ]
-                    row, col = hovered[0][0]
-                    if self.board.visible[row, col] == 0:
-                        self.update(click=rect)
-                        pygame.display.flip()
+                    if hovered:
+                        cell, rect = hovered[0]
+                        row, col = cell
+                        if (row, col) not in self.board.initial_cells:
+                            self._selected_cell = (row, col)
+                            self.update(click=rect)
+                        else:
+                            self._selected_cell = None
+                    else:
+                        self._selected_cell = None
+                        self.update()
 
-                        digit = None
-                        while digit is None:
-                            for event in pygame.event.get():
-                                if event.type == pygame.KEYDOWN:
-                                    if event.unicode.isdigit():
-                                        digit = int(event.unicode)
-                                        if digit == self.board.grid[x, y]:
-                                            pygame.mixer.music.load(
-                                                "assets/sounds/Misc 1.wav"
-                                            )
-                                            pygame.mixer.music.play()
-                                            self.board.visible[x, y] = digit
-                                            self.update()
-                                            break
+                # Gestion du clavier
+                if event.type == pygame.KEYDOWN and self._selected_cell:
+                    row, col = self._selected_cell
+                    if event.key in [pygame.K_BACKSPACE, pygame.K_DELETE]:
+                        if (row, col) not in self.board.initial_cells:
+                            self.board.grid[row, col] = 0
+                            self.update()
+                    elif event.unicode.isdigit() and event.unicode != '0':
+                        if (row, col) not in self.board.initial_cells:
+                            digit = int(event.unicode)
+                            self.board.grid[row, col] = digit
+                            self.update()
 
-                                        else:
-                                            self.lives -= 1
-                                            pygame.mixer.music.load(
-                                                "assets/sounds/Coin 1.wav"
-                                            )
-                                            pygame.mixer.music.play()
-                                            if self.lives <= 0:
-                                                self.show_game_over("Game Over!")
-                                                return False
-
-                                            self.update()
-                                            break
-
-                if event.type == pygame.QUIT:
-                    return True
-
-            if self._hovered:
+            # Mise à jour de l'affichage
+            if self._hovered and not self._selected_cell:
                 self.update(hover=self._hovered)
+            elif self._selected_cell:
+                self.update(click=self.rects[self._selected_cell])
             else:
                 self.update()
 
     def show_game_over(self, message: str) -> None:
-        """
-        Show the game over screen.
-
-        :param str message: message to display
-        """
         self._screen.fill(Color.WHITE.value)
         font = pygame.font.Font("assets/fonts/OpenSans-Medium.ttf", 32)
         text = font.render(message, True, Color.BLACK.value)
-        text_rect = text.get_rect(
-            center=(
-                self._resolution[0] // 2,
-                self._resolution[1] // 2,
-            )
-        )
+        text_rect = text.get_rect(center=(self._resolution[0] // 2, self._resolution[1] // 2))
         self._screen.blit(text, text_rect)
 
         time_text = font.render(
@@ -349,5 +386,5 @@ class Game:
             )
         )
         self._screen.blit(time_text, time_text_rect)
-        pygame.display.flip()
-        pygame.time.wait(5000)
+        pygame.display.flip()        
+        pygame.time.wait(2000)

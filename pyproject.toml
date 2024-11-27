@@ -1,9 +1,9 @@
 [project]
-name = "sudoku"
+name = "sudoku-solving"
 version = "0.1.0"
-description = "Add your description here"
+description = "A simple sudoku solving game with OR-Tools"
 authors = [
-    { name = "Alexandre Cirilo", email = "38657258+alxdrcirilo@users.noreply.github.com" },
+   {name = "AHOUANYE Elonm", email = "josaphatahouanye@gmail.com"}
 ]
 license = "MIT"
 readme = "README.md"

@@ -15,10 +15,16 @@ class Board:
         """
         Initialize and fill the board.
         """
+        self.solution = {(row, col): 0 for row in range(9) for col in range(9)}
         self.grid = {(row, col): 0 for row in range(9) for col in range(9)}
         self.prefill()
         self.fill()
+        # Sauvegarder la solution
+        self.solution = copy.deepcopy(self.grid)
+        # Créer la grille de jeu avec des cases vides
+        self.grid = copy.deepcopy(self.solution)
         self.prune(n=40)
+        self.initial_cells = {cell for cell, value in self.grid.items() if value != 0}
 
     def __str__(self) -> str:
         """
@@ -84,23 +90,20 @@ class Board:
 
     def get_allowed(self, row: int, col: int) -> set[int]:
         """
-        Get possible digits for the given position.
-        Check the horizontal, vertical and subgrid (3x3).
-
-        :param int row: row index
-        :param int col: column index
-        :return set[int]: set of possible digits or None
+        Get possible digits for the position based on Sudoku rules.
         """
         if self.grid[row, col] == 0:
-            digits = set(range(10))
-            horizontal = {self.grid[row, c] for c in range(9)}
-            vertical = {self.grid[r, col] for r in range(9)}
+            digits = set(range(1, 10))
+            horizontal = {self.grid[row, c] for c in range(9) if c != col}
+            vertical = {self.grid[r, col] for r in range(9) if r != row}
             subgrid = {
                 self.grid[r, c]
                 for r in range(row - row % 3, row - row % 3 + 3)
                 for c in range(col - col % 3, col - col % 3 + 3)
+                if (r, c) != (row, col)
             }
-            return digits - horizontal - vertical - subgrid
+            used_digits = horizontal.union(vertical).union(subgrid) - {0}
+            return digits - used_digits
         return set()
 
     def fill(self) -> bool:
@@ -122,11 +125,10 @@ class Board:
 
     def prune(self, n: int) -> None:
         """
-        Randomly remove `n` digits from the board.
+        Randomly remove n digits from the grid.
         """
-        self.visible = copy.deepcopy(self.grid)
-        cells = list(self.visible.keys())
+        cells = list(self.grid.keys())
         for _ in range(n):
             cell = random.choice(cells)
             cells.remove(cell)
-            self.visible[cell] = 0
+            self.grid[cell] = 0
