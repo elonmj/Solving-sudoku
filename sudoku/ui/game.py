@@ -5,8 +5,8 @@ from typing import Tuple
 import pygame
 import pygame.freetype
 
-from sudoku.logic.board import Board, Coordinates
-from sudoku.resolution.solver import SudokuSolver
+from sudoku.models.board import Board, Coordinates
+from sudoku.solver.solver import SudokuSolver
 from sudoku.config import GameConfig, Color
 from sudoku.ui.components import Button, Grid
 

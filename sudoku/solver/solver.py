@@ -1,7 +1,7 @@
 from typing import Dict, Tuple
 from ortools.sat.python import cp_model
 
-from sudoku.logic.board import Board 
+from sudoku.models.board import Board 
 
 class SudokuSolver:
     def __init__(self, board: Board):
